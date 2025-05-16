@@ -16,13 +16,13 @@ Quotes:
 > > **nested quote** nested quote <br />
 > **quote 2** another quote <br />
 > > and image embeded into a nested quote: <br />
-> > ![image](https://github.com/user-attachments/assets/829eb1d6-b457-4fff-a924-5748cb1bdef3) <br />
+> > ![image](https://github.com/user-attachments/assets/829eb1d6-b457-4fff-a924-5748cb1bdef3 <br />
 
 > A new quote!
 > > A new nested quote
 > > > Super deeply nested quote
 
-Lists:) <br />
+Lists: <br />
 1. First list item
    - First nested list item
    - Second nested list item
@@ -42,7 +42,7 @@ Lists:) <br />
 3. **Third item**
    - Third-first sub-item with `some code` embeding
 
-Tables:) <br />
+Tables: <br />
 | **Col A**      | **Col B** | **Col C** | **Col D** |
 |----------------|-----------|----------------------|-----------------------|
 | Row A     | 37        | 5.18222              | 166,500               |
@@ -54,14 +54,13 @@ Tables:) <br />
 Code snippets: <br />
 1. Clone this repository:
    ```bash
-   git clone https://github.com/skibadubskiybadubs/energyplus_multiprocessing.git
+   git clone https://github.com/skibadubskiybadubs/ReadMe_to_HTML.git
    cd energyplus-parallel
    ```
 
-2. Install the required dependencies:
-   ```bash
-   pip install rich psutil
-   ```
+```bash
+python ReadmeToHTML.py "https://github.com/skibadubskiybadubs/ReadMe_to_HTML/blob/main/test/test.md" "test.html"
+```
 
 - `--eplus`: Path to the EnergyPlus installation directory (required)
 - `--max-workers`: Maximum number of parallel simulations (default: number of logical processors - 1)
