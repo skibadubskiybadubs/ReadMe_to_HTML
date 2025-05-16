@@ -1,35 +1,57 @@
 # Header 1
-sometext <br />
-<img src="https://github.com/user-attachments/assets/b976db6b-364b-429c-a278-948689419871" width="400"> <br />
+embedding an image using html with width parameter: <br />
+<img src="https://github.com/user-attachments/assets/530d180d-d88e-4198-883f-3fa9c9808ec0" width="400"> <br />
 
 ## Header 2
-- **Parallel Processing**: Automatically detects available CPU cores and runs multiple simulations concurrently
-- **Real-time Monitoring**: Live UI showing simulation progress, CPU and memory usage
-- **Automatic Staging**: Queues simulations and starts new ones as others complete
-- **Error Handling**: Detects and reports simulation failures in real-time
-- **CSV Reporting**: Generates a detailed CSV report of all simulation runs
-- **Resource Management**: Monitors and displays CPU and memory usage for each simulation
+- **bold text**: normal text
+- *italic text*: normal text
+- ~~crossed text~~: normal text
+- <ins>underline text</ins>: normal text
+- <sub>subscript</sub>: normal text
+- <sup>superscript</sup>: normal text
 
 ### Header 3
-> **Boiler:** x3 Electric <br />
-> **Capacity (kW):** Multiple units: 4.5kW for larger units, 1.5kW for common areas <br />
-> **Efficiency:** Not specified <br />
-> ![image](https://github.com/user-attachments/assets/f53fbe8d-e98a-4998-a848-3a46def6528b) <br />
-> Tank Volume (Storage Capacity): (55+37+6)*0.00378541 = 0.37097 <br />
-> The schedule says **typical for ..**, which means there are not just 3 boilers, but one per suite of a type <br />
-> Sum up and model the DHW Storage Capacity (Tank Volume) and Heating Capacity (W) per the mech schedule. <br />
-> Looks like there are many small ones in the suites, and maybe 1 more for the amenities. <br />
-> 55gals = 0.208198m3; 37gals = 0.14006m3; 6gals = 0.0227125m3. <br />
+Quotes:
+> **quote 1** quoting
+> > **nested quote** nested quote <br />
+> **quote 2** another quote <br />
+> > and image embeded into a nested quote: <br />
+> > ![image](https://github.com/user-attachments/assets/829eb1d6-b457-4fff-a924-5748cb1bdef3) <br />
 
-| **Space**      | **Count** | **Storage Capacity** | **Heating Capacity** |
+> A new quote!
+> > A new nested quote
+> > > Super deeply nested quote
+
+Lists:) <br />
+1. First list item
+   - First nested list item
+   - Second nested list item
+     - First deep-nested list item
+     - Second deep-nested list item
+   - Third nested list item
+2. Second list item
+
+1. **First item**
+   - First-first sub-item
+   - First-second sub-item
+
+2. **Second item**
+   - Second-first sub-item
+   - Second-second sub-item
+
+3. **Third item**
+   - Third-first sub-item with `some code` embeding
+
+Tables:) <br />
+| **Col A**      | **Col B** | **Col C** | **Col D** |
 |----------------|-----------|----------------------|-----------------------|
-| Suite 1 bd     | 37        | 5.18222              | 166,500               |
-| Suite 2+ bd    | 23        | 4.788554             | 103,500               |
-| Amenities      | 1         | 0.0227125            | 1,500                 |
+| Row A     | 37        | 5.18222              | 166,500               |
+| Row B    | 23        | 4.788554             | 103,500               |
+| Row C      | 1         | 0.0227125            | 1,500                 |
 
-> ![image](https://github.com/user-attachments/assets/4f1116fd-15c2-404f-a86a-3d2eb318502c)
 
 #### Header 4
+Code snippets: <br />
 1. Clone this repository:
    ```bash
    git clone https://github.com/skibadubskiybadubs/energyplus_multiprocessing.git
@@ -46,13 +68,8 @@ sometext <br />
 - `--csv`: Output CSV file name (default: "simulation_results.csv")
 
 ##### Header 5
-1. **Error: EnergyPlus executable not found**
-   - Ensure the path to EnergyPlus is correct
-   - Verify EnergyPlus is properly installed
+Links:
+Here is some link [to a cool website](https://mybro.win/).
 
-2. **Simulations start but fail immediately**
-   - Check that your IDF files are valid
-   - Verify that the weather file is in the same directory
-
-3. **Script crashes with memory errors**
-   - Reduce the number of parallel simulations using the `--max-workers` option
+embedding an image using native Markdown styling:
+![image](https://github.com/user-attachments/assets/2e1be662-effa-4af2-ad9b-c659947078e7)
