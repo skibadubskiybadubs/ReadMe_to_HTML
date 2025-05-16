@@ -165,10 +165,11 @@ def preprocess_markdown(content, github_token=None):
 def get_github_css():
     """Get GitHub-like CSS for styling the HTML output"""
     return """
+    
     body {
         font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
         font-size: 16px;
-        line-height: 1.5;
+        /* line-height: 1.5; */
         word-wrap: break-word;
         padding: 45px;
         max-width: 900px;
@@ -228,6 +229,10 @@ def get_github_css():
         padding: 0 1em;
         color: #6a737d;
         border-left: 0.25em solid #dfe2e5;
+    }
+    
+    .markdown-body blockquote blockquote {
+        margin-top: 0.5em;
     }
     
     .markdown-body code {
@@ -292,6 +297,7 @@ def get_github_css():
     }
     
     .markdown-body li {
+        line-height: 1 !important;
         word-wrap: break-all;
     }
     
@@ -361,6 +367,25 @@ def get_github_css():
         background-color: #f6f8fa;
     }
     
+    /* Additional styles for specific markdown elements */
+    .markdown-body del {
+        text-decoration: line-through;
+    }
+    
+    .markdown-body ins {
+        text-decoration: underline;
+    }
+    
+    .markdown-body sub {
+        vertical-align: sub;
+        font-size: smaller;
+    }
+    
+    .markdown-body sup {
+        vertical-align: super;
+        font-size: smaller;
+    }
+    
     /* Dark theme styles - optional */
     @media (prefers-color-scheme: dark) {
         body {
@@ -423,13 +448,70 @@ def format_text(text):
     # Format italic text - *text*
     text = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
     
+    # Format strikethrough text - ~~text~~
+    text = re.sub(r'~~(.*?)~~', r'<del>\1</del>', text)
+    
     # Format code - `text`
     text = re.sub(r'`(.*?)`', r'<code>\1</code>', text)
     
     # Format links - [text](url)
     text = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2">\1</a>', text)
     
+    # Already HTML tags like <ins>, <sub>, <sup> should be preserved as-is
+    
     return text
+
+def parse_nested_blockquotes(blockquote_lines):
+    """
+    Parse a list of blockquote lines into properly nested HTML
+    
+    Args:
+        blockquote_lines (list): List of lines starting with >
+        
+    Returns:
+        str: HTML with properly nested blockquotes
+    """
+    html_output = []
+    current_level = 0
+    
+    # Stack to track blockquote levels
+    blockquote_stack = []
+    
+    for line in blockquote_lines:
+        # Count the number of '>' characters to determine nesting level
+        match = re.match(r'^(>+)\s*(.*?)$', line)
+        if not match:
+            continue
+            
+        level = len(match.group(1))
+        content = match.group(2)
+        
+        # Adjust the blockquote nesting
+        if level > current_level:
+            # Open new blockquotes
+            for _ in range(level - current_level):
+                html_output.append('<blockquote>')
+                blockquote_stack.append(level)
+        elif level < current_level:
+            # Close blockquotes
+            for _ in range(current_level - level):
+                html_output.append('</blockquote>')
+                if blockquote_stack:
+                    blockquote_stack.pop()
+        
+        # Add the content if not empty
+        if content.strip():
+            formatted_content = format_text(content)
+            html_output.append(f'<p>{formatted_content}</p>')
+        
+        current_level = level
+    
+    # Close any remaining open blockquotes
+    while blockquote_stack:
+        html_output.append('</blockquote>')
+        blockquote_stack.pop()
+    
+    return ''.join(html_output)
 
 def parse_markdown_table(table_block):
     """
@@ -459,7 +541,15 @@ def parse_markdown_table(table_block):
     
     # Check for separator row (row with dashes)
     separator_row = lines[1].strip()
-    if not all(cell.strip() == '' or all(c == '-' for c in cell.strip()) for cell in separator_row.split('|')[1:-1]):
+    separator_cells = separator_row.split('|')
+    
+    # Make sure this is a proper table separator
+    if len(separator_cells) < len(headers):
+        # Not a proper table, just return as text
+        return f"<p>{table_block}</p>"
+    
+    # Check if each cell in separator row contains mostly dashes
+    if not all(cell.strip() == '' or all(c in '-:' for c in cell.strip()) for cell in separator_cells[1:-1]):
         # Not a proper table, just return as text
         return f"<p>{table_block}</p>"
     
@@ -512,9 +602,39 @@ def parse_list_items(lines):
     html_output = []
     stack = []  # Stack of (level, list_type) to track nesting
     
-    for line in lines:
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        
         # Skip empty lines
         if not line.strip():
+            i += 1
+            continue
+        
+        # Check for code blocks within list items
+        if re.match(r'^\s*```', line):
+            code_block = []
+            lang_match = re.match(r'^\s*```(.*)$', line)
+            language = lang_match.group(1).strip() if lang_match else ""
+            i += 1
+            
+            # Collect code block content
+            while i < len(lines) and not re.match(r'^\s*```', lines[i]):
+                code_block.append(lines[i])
+                i += 1
+                
+            # Skip closing ```
+            if i < len(lines):
+                i += 1
+                
+            # Add code block to output
+            code_content = '\n'.join(code_block)
+            code_content = code_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            
+            if language:
+                html_output.append(f'<pre><code class="language-{language}">{code_content}</code></pre>')
+            else:
+                html_output.append(f'<pre><code>{code_content}</code></pre>')
             continue
         
         # Check for ordered list item
@@ -524,15 +644,25 @@ def parse_list_items(lines):
         
         if ol_match:
             indent, number, content = ol_match.groups()
-            indent_level = len(indent) // 2
+            indent_level = len(indent) // 2  # Assuming 2 spaces per indent level
             list_type = 'ol'
         elif ul_match:
             indent, content = ul_match.groups()
             indent_level = len(indent) // 2
             list_type = 'ul'
         else:
-            # Not a list item
-            continue
+            # Handle content that's part of the previous list item
+            if stack:
+                last_level = stack[-1][0]
+                current_indent = len(line) - len(line.lstrip())
+                if current_indent >= last_level * 2:  # Indented enough to be part of the list
+                    formatted_line = format_text(line.strip())
+                    html_output.append(f"<p>{formatted_line}</p>")
+                    i += 1
+                    continue
+            
+            # Not a list item and not part of one
+            break
         
         # Process content for formatting
         formatted_content = format_text(content)
@@ -548,11 +678,39 @@ def parse_list_items(lines):
             stack.append((indent_level, list_type))
         
         # Add the list item
-        html_output.append(f"<li>{formatted_content}</li>")
+        html_output.append(f"<li>{formatted_content}")
+        
+        # Look ahead to next line
+        if i + 1 < len(lines):
+            next_line = lines[i + 1]
+            next_ol_match = re.match(r'^(\s*)(\d+)\.\s+', next_line) if next_line.strip() else None
+            next_ul_match = re.match(r'^(\s*)[-*•○]\s+', next_line) if next_line.strip() else None
+            
+            # If next line is a list item at same or higher level, close this item
+            if next_ol_match or next_ul_match:
+                next_indent = len(next_ol_match.group(1) if next_ol_match else next_ul_match.group(1))
+                next_level = next_indent // 2
+                
+                if next_level <= indent_level:
+                    html_output.append("</li>")
+            else:
+                # Check if next line is a code block or content for this item
+                if not next_line.strip() or re.match(r'^\s*```', next_line) or (next_line.strip() and len(next_line) - len(next_line.lstrip()) > indent_level * 2):
+                    # Don't close the list item yet
+                    pass
+                else:
+                    html_output.append("</li>")
+        else:
+            # End of the list, close the item
+            html_output.append("</li>")
+        
+        i += 1
     
     # Close any remaining open lists
     while stack:
         closed_level, closed_type = stack.pop()
+        if html_output and not html_output[-1].endswith("</li>"):
+            html_output.append("</li>")
         html_output.append(f"</{closed_type}>")
     
     return ''.join(html_output)
@@ -604,13 +762,16 @@ def convert_markdown_to_html(markdown_text, github_url=""):
             i += 1
             continue
         
-        # Check for code blocks
-        if line.startswith('```'):
+        # Check for code blocks - properly handle indented code blocks
+        if re.match(r'^\s*```', line):
             code_block = []
-            language = line[3:].strip()
+            # Extract language and remove the ```
+            lang_match = re.match(r'^\s*```(.*)$', line)
+            language = lang_match.group(1).strip() if lang_match else ""
             i += 1
             
-            while i < len(lines) and not lines[i].startswith('```'):
+            # Collect all lines until closing ```
+            while i < len(lines) and not re.match(r'^\s*```', lines[i]):
                 code_block.append(lines[i])
                 i += 1
             
@@ -618,11 +779,31 @@ def convert_markdown_to_html(markdown_text, github_url=""):
             if i < len(lines):
                 i += 1
             
+            # Preserve exact formatting including whitespace
             code_content = '\n'.join(code_block)
+            
+            # Escape HTML entities
+            code_content = code_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            
             if language:
                 html_output.append(f'<pre><code class="language-{language}">{code_content}</code></pre>')
             else:
                 html_output.append(f'<pre><code>{code_content}</code></pre>')
+            continue
+        
+        # Check for blockquotes with proper nesting
+        if line.startswith('>'):
+            blockquote_lines = [line]
+            i += 1
+            
+            # Collect all blockquote lines
+            while i < len(lines) and (lines[i].startswith('>') or not lines[i].strip()):
+                if lines[i].strip():  # Skip empty lines but keep track of them
+                    blockquote_lines.append(lines[i])
+                i += 1
+            
+            blockquote_html = parse_nested_blockquotes(blockquote_lines)
+            html_output.append(blockquote_html)
             continue
         
         # Check for tables
@@ -643,12 +824,37 @@ def convert_markdown_to_html(markdown_text, github_url=""):
         if list_match:
             # Collect all list items
             list_lines = []
-            start_index = i
             
-            while i < len(lines) and (re.match(r'^(\s*)(\d+\.|[-*•○])\s+', lines[i]) or not lines[i].strip()):
-                if lines[i].strip():  # Skip empty lines but keep them in mind
-                    list_lines.append(lines[i])
-                i += 1
+            while i < len(lines):
+                current = lines[i]
+                if not current.strip():
+                    list_lines.append(current)
+                    i += 1
+                    continue
+                    
+                current_match = re.match(r'^(\s*)(\d+\.|[-*•○])\s+', current)
+                
+                # If it's a list item or empty line or indented content, include it
+                if current_match or re.match(r'^\s+', current):
+                    list_lines.append(current)
+                    i += 1
+                elif re.match(r'^\s*```', current):
+                    # It's a code block within the list
+                    list_lines.append(current)
+                    i += 1
+                    
+                    # Collect code block content
+                    while i < len(lines) and not re.match(r'^\s*```', lines[i]):
+                        list_lines.append(lines[i])
+                        i += 1
+                    
+                    # Add closing code fence if found
+                    if i < len(lines):
+                        list_lines.append(lines[i])
+                        i += 1
+                else:
+                    # Not a list-related line, end list processing
+                    break
             
             list_html = parse_list_items(list_lines)
             html_output.append(list_html)
@@ -658,11 +864,16 @@ def convert_markdown_to_html(markdown_text, github_url=""):
         paragraph_lines = [line]
         i += 1
         
-        while i < len(lines) and lines[i].strip() and not re.match(r'^(#{1,6}|\d+\.|[-*•○]|```|\|)\s+', lines[i]):
+        # Collect all lines for this paragraph
+        while i < len(lines) and lines[i].strip() and not (
+            re.match(r'^(#{1,6}|\d+\.|[-*•○]|>|```|\|)\s+', lines[i]) or 
+            re.match(r'^\s*```', lines[i])
+        ):
             paragraph_lines.append(lines[i])
             i += 1
         
-        paragraph_text = ' '.join(paragraph_lines)
+        # Preserve spacing by joining with space only if needed
+        paragraph_text = ' '.join(line.rstrip() for line in paragraph_lines)
         formatted_paragraph = format_text(paragraph_text)
         html_output.append(f"<p>{formatted_paragraph}</p>")
     
