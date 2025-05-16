@@ -1,5 +1,5 @@
 """
-GitHub README Converter - Final Version with Perfect Formatting
+GitHub README Converter
 """
 import os
 import re
