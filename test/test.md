@@ -16,7 +16,7 @@ Quotes:
 > > **nested quote** nested quote <br />
 > **quote 2** another quote <br />
 > > and image embeded into a nested quote: <br />
-> > ![image](https://github.com/user-attachments/assets/829eb1d6-b457-4fff-a924-5748cb1bdef3 <br />
+> > ![image](https://github.com/user-attachments/assets/829eb1d6-b457-4fff-a924-5748cb1bdef3) <br />
 
 > A new quote!
 > > A new nested quote
