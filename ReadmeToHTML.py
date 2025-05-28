@@ -7,7 +7,7 @@ import base64
 import mimetypes
 import argparse
 import requests
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 def download_github_markdown(github_url, github_token=None):
     """
@@ -88,19 +88,38 @@ def download_and_encode_image(url, github_token=None):
         print(f"Failed to download/encode image {url}: {e}")
         return None
 
-def preprocess_markdown(content, github_token=None):
+def preprocess_markdown(content, github_token=None, github_url=""):
     """
     Preprocess markdown content to embed images as base64
     
     Args:
         content (str): Markdown content
         github_token (str, optional): GitHub personal access token
+        github_url (str): Original GitHub URL for resolving relative paths
         
     Returns:
         str: Preprocessed markdown content
     """
     # Keep track of how many images we process
     image_count = 0
+    
+    # Extract base URL for relative paths
+    base_url = ""
+    if github_url:
+        # Convert GitHub web URL to raw base URL for relative paths
+        if '/blob/' in github_url:
+            # Extract user, repo, and branch from URL
+            parts = github_url.split('/')
+            if len(parts) >= 7:
+                user = parts[3]
+                repo = parts[4]
+                branch = parts[6]
+                base_url = f"https://raw.githubusercontent.com/{user}/{repo}/{branch}/"
+                print(f"Base URL for relative paths: {base_url}")
+            else:
+                print(f"Could not extract base URL from GitHub URL: {github_url}")
+        else:
+            print(f"GitHub URL format not recognized: {github_url}")
     
     # Process GitHub user-attachment URLs in markdown format
     md_pattern = r'!\[(.*?)\]\((https://github\.com/user-attachments/assets/[^)]+)\)'
@@ -140,6 +159,79 @@ def preprocess_markdown(content, github_token=None):
     
     modified_content = re.sub(html_pattern, replace_html_image, modified_content)
     
+    # Process relative path images in HTML format
+    if base_url:
+        relative_html_pattern = r'<img src="([^"]+)"([^>]*)>'
+        
+        def replace_relative_html_image(match):
+            nonlocal image_count
+            src = match.group(1)
+            attrs = match.group(2)
+            
+            # Skip if it's already an absolute URL
+            if src.startswith(('http://', 'https://', 'data:')):
+                return match.group(0)  # Return original
+            
+            print(f"Processing relative HTML image: {src}")
+            
+            # Convert relative path to absolute GitHub raw URL
+            # Handle path separators and URL encoding
+            relative_path = src.replace('\\', '/')
+            # URL encode the path components but preserve the forward slashes
+            path_parts = relative_path.split('/')
+            encoded_parts = [quote(part) for part in path_parts]
+            encoded_path = '/'.join(encoded_parts)
+            absolute_url = base_url + encoded_path
+            
+            print(f"Converted to absolute URL: {absolute_url}")
+            
+            data_url = download_and_encode_image(absolute_url, github_token)
+            image_count += 1
+            
+            if data_url:
+                return f'<img src="{data_url}"{attrs}>'
+            else:
+                # Keep original URL if download failed
+                return f'<img src="{absolute_url}"{attrs}>'
+        
+        modified_content = re.sub(relative_html_pattern, replace_relative_html_image, modified_content)
+    
+    # Process relative path images in markdown format
+    if base_url:
+        relative_md_pattern = r'!\[(.*?)\]\(([^)]+)\)'
+        
+        def replace_relative_md_image(match):
+            nonlocal image_count
+            alt_text = match.group(1)
+            src = match.group(2)
+            
+            # Skip if it's already an absolute URL
+            if src.startswith(('http://', 'https://', 'data:')):
+                return match.group(0)  # Return original
+            
+            print(f"Processing relative Markdown image: {src}")
+            
+            # Convert relative path to absolute GitHub raw URL
+            relative_path = src.replace('\\', '/')
+            # URL encode the path components but preserve the forward slashes
+            path_parts = relative_path.split('/')
+            encoded_parts = [quote(part) for part in path_parts]
+            encoded_path = '/'.join(encoded_parts)
+            absolute_url = base_url + encoded_path
+            
+            print(f"Converted to absolute URL: {absolute_url}")
+            
+            data_url = download_and_encode_image(absolute_url, github_token)
+            image_count += 1
+            
+            if data_url:
+                return f'<img src="{data_url}" alt="{alt_text}">'
+            else:
+                # Keep original URL if download failed
+                return f'<img src="{absolute_url}" alt="{alt_text}">'
+        
+        modified_content = re.sub(relative_md_pattern, replace_relative_md_image, modified_content)
+    
     # Process other GitHub image URLs
     other_md_pattern = r'!\[(.*?)\]\((https://github\.com/[^)]+)\)'
     raw_md_pattern = r'!\[(.*?)\]\((https://raw\.githubusercontent\.com/[^)]+)\)'
@@ -165,11 +257,10 @@ def preprocess_markdown(content, github_token=None):
 def get_github_css():
     """Get GitHub-like CSS for styling the HTML output"""
     return """
-    
     body {
         font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
         font-size: 16px;
-        /* line-height: 1.5; */
+        line-height: 1.5;
         word-wrap: break-word;
         padding: 45px;
         max-width: 900px;
@@ -297,7 +388,6 @@ def get_github_css():
     }
     
     .markdown-body li {
-        line-height: 1 !important;
         word-wrap: break-all;
     }
     
@@ -726,19 +816,6 @@ def convert_markdown_to_html(markdown_text, github_url=""):
     Returns:
         str: HTML content
     """
-    # Extract repo/file name from URL for the title
-    if github_url:
-        url_parts = github_url.split('/')
-        if len(url_parts) >= 5:
-            repo_name = url_parts[4]  # Repo name is typically the 5th part of the URL
-            file_name = url_parts[-1] if url_parts[-1] else "README.md"
-        else:
-            repo_name = "GitHub"
-            file_name = "README"
-    else:
-        repo_name = "GitHub"
-        file_name = "README"
-    
     # Initialize HTML components
     html_output = []
     lines = markdown_text.split('\n')
@@ -899,7 +976,7 @@ def convert_github_url_to_html(github_url, output_path, github_token=None):
         return None
     
     # Preprocess markdown to embed images as base64
-    modified_content = preprocess_markdown(content, github_token)
+    modified_content = preprocess_markdown(content, github_token, github_url)
     
     # Convert markdown to HTML
     html_body = convert_markdown_to_html(modified_content, github_url)
